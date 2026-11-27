@@ -340,6 +340,20 @@ export const MUTANTS = [
     [C],
   ],
   ['connected resends the values', APP, '      this.published.clear();\n', '', [A]],
+  [
+    'Scan keeps the back-off',
+    APP,
+    'if (this.reading || this.mono() - this.lastReadMono < this.readInterval()) return;',
+    '',
+    [A],
+  ],
+  [
+    'account status freshness',
+    APP,
+    'if (this.account.status && now - this.account.at <= 2 * TIMINGS.accountEvery) {',
+    'if (this.account.status) {',
+    [A],
+  ],
 ];
 
 /** Equivalent mutants, with the reason (no test can tell them apart). */
@@ -349,12 +363,6 @@ export const EQUIVALENT = [
     APP,
     'if (room <= 0) return;',
     'the window never holds more than 240 (the slice takes at most `room`): without it, slice(0, 0) sends an empty list; the budget itself is tested (150 droplets: 240 states, the rest later)',
-  ],
-  [
-    'Scan sooner than the interval',
-    APP,
-    'if (this.reading || this.mono() - this.lastReadMono < this.readInterval()) return;',
-    'tick() itself never reads sooner than the interval (mutant "never faster than the interval") and leaves a read in flight alone; the read in flight schedules the next one',
   ],
   [
     'later() bounded',

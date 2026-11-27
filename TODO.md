@@ -109,6 +109,14 @@ Handoff document: what is done, what was decided, what comes next.
   two equivalents justified there (Scan sooner than the interval, the early
   return of the 240-state budget).
 
+## Review r2 (2026-11-27)
+
+- The Scan guard is not an equivalent: without it, a Scan during the back-off
+  of failed reads cut it to the rest of the interval. Tested and in the
+  mutants now.
+- The account status is sent only while the account was read within 12 h
+  (2 periods), as the alert policies.
+
 ## Next
 
 - Test with a real account (a Read token, then a custom-scoped one): the

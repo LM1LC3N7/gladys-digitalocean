@@ -722,7 +722,7 @@ export class DoApp {
         this.balance = undefined;
         this.alerts = undefined;
       }
-      this.account = account;
+      this.account = { ...account, at: this.mono() };
     }
     if (!this.secondaryOk(generation)) return;
     const balance = await this.secondary('balance', generation, TIMINGS.balanceEvery, () =>
@@ -910,7 +910,8 @@ export class DoApp {
     }
     if (this.account) {
       const ids = idsOf(this.gladys, 'account', this.account.id);
-      if (this.account.status) {
+      // The status: while the account was read within 2 periods (12 h).
+      if (this.account.status && now - this.account.at <= 2 * TIMINGS.accountEvery) {
         add(ids.feature(FEATURES.ACCOUNT_STATUS), accountWord(this.account.status, language));
       }
       if (this.balanceFresh()) {

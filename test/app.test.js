@@ -494,3 +494,41 @@ test('a reconnection with the same configuration sends the fresh values again', 
   );
   assert.ok(ctx.gladys.fake.states.length > before);
 });
+
+// --- Review r2 -------------------------------------------------------------------
+
+test('Scan during the back-off of failed reads never shortens it', async (t) => {
+  const ctx = await setup(t, {
+    config: { poll_interval: 60 },
+    server: {
+      replyFor: (r) =>
+        r.path === '/v2/droplets'
+          ? { status: 404, body: { id: 'not_found', message: 'x' } }
+          : undefined,
+    },
+  });
+  await until(ctx, () => ctx.fake.count('GET /v2/droplets') === 2, 'two failed reads', {
+    step: 5000,
+  });
+  await idle(ctx);
+  // Back-off after the 2nd failure: 120 s (twice the interval).
+  await ctx.clock.advance(10_000);
+  await within(ctx.gladys.fake.scanRequest(), 'scan');
+  await ctx.clock.advance(70_000);
+  await idle(ctx);
+  assert.equal(ctx.fake.count('GET /v2/droplets'), 2, 'not at the interval: the back-off holds');
+  await until(ctx, () => ctx.fake.count('GET /v2/droplets') === 3, 'third read', { step: 5000 });
+});
+
+test('the account status is not sent as new once older than 12 h', async (t) => {
+  const ctx = await online(t, { devices: [], config: { poll_interval: 3600 } });
+  ctx.fake.forbid.add('account');
+  await until(ctx, () => ctx.clock.elapsed > 13 * 3_600_000, 'time', {
+    step: 600_000,
+    timeout: 15_000,
+  });
+  await idle(ctx);
+  await within(ctx.gladys.fake.deviceCreated(created('account', TEAM_UUID)), 'account');
+  assert.equal(stateOf(ctx, 'account', TEAM_UUID, 'account_status'), undefined);
+  assert.equal(stateOf(ctx, 'account', TEAM_UUID, 'month_usage'), 11.21, 'the balance is fresh');
+});
