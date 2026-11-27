@@ -123,3 +123,7 @@ Handoff document: what is done, what was decided, what comes next.
   shapes of `/v2/account` with and without a team, the balance texts, the
   `locked` flag during an action, the 403 body of a missing scope.
 - Maybe: droplet monitoring metrics (CPU, memory) through `/v2/monitoring/metrics`.
+
+## Next patch
+
+- Review minors: see `_lots/lot25/reviews/digitalocean-r{1,2,3}.md` (mutants faibles ou équivalents classés mineurs).
