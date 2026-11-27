@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-27
+
 ### Added
 
 - DigitalOcean over its official API v2 (HTTPS, personal access token in
@@ -39,3 +41,6 @@ the notes of the version's GitHub Release.
   longer cancels the first; a Reboot without an answer is said impossible to
   confirm; a reconnection sends the fresh values again; docs on the 429 pause
   and on billing made exact.
+
+[Unreleased]: https://github.com/LM1LC3N7/gladys-digitalocean/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/LM1LC3N7/gladys-digitalocean/releases/tag/v0.1.1

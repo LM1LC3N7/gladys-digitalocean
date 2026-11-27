@@ -1,6 +1,6 @@
 {
   "name": "gladys-digitalocean",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Gladys Assistant external integration for DigitalOcean: droplets (status, public IPv4), the usage and balance of the month, alert policies and uptime checks through the official API v2 with a personal access token; power on a droplet, shut down / force power off / reboot behind options. Unofficial, not affiliated with DigitalOcean.",
   "type": "module",
