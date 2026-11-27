@@ -27,5 +27,15 @@ the notes of the version's GitHub Release.
   creation, resize, rebuild nor deletion.
 - Quota followed (`ratelimit-*` headers against the Date of DigitalOcean): only
   the droplets under 20 % left, reads wait under 25 requests; 429/5xx pause
-  (Retry-After, 1 min doubling to 6 h) kept in /data; the last read paces a
+  (Retry-After, else the quota reset, at least 1 min, doubling to 6 h) kept in
+  /data; the last read paces a
   restart.
+
+### Fixed
+
+- Review r1: account and team ids as the OpenAPI shows them (40 characters
+  without dashes) are taken; an action answered 2xx with a body not understood
+  is "sent, without confirmation" with follow-up reads; a second stop no
+  longer cancels the first; a Reboot without an answer is said impossible to
+  confirm; a reconnection sends the fresh values again; docs on the 429 pause
+  and on billing made exact.

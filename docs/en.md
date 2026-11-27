@@ -11,7 +11,8 @@ from the official API documentation, against a simulated API, without a real acc
 ## Costs
 
 The DigitalOcean API is free, but your account is billed for your resources. This integration creates nothing
-and changes no size: it cannot raise your bill. Beware: **a droplet turned off is still billed** (only deleting
+and resizes nothing. A droplet powered on again uses its outbound traffic as before (billed beyond its
+allowance). Beware: **a droplet turned off is still billed** (only deleting
 it stops the billing, and the integration never deletes anything).
 
 ## Token
@@ -72,7 +73,8 @@ For each press:
 5. a command is shown as **done** only once a later read shows it (Power on: droplet running; Shut down and
    Force power off: droplet off; Reboot: action completed then droplet running). The reads follow at 5 s, 20 s,
    60 s (180 s for Shut down, 10/30/90 s for Reboot). Without a clear answer, the command is "sent, without
-   confirmation" and is never sent again by itself.
+   confirmation" and is never sent again by itself (a Reboot sent so cannot be confirmed: the droplet runs
+   either way; check it in the control panel).
 
 Safeguards: one command per droplet per 15 s; one at a time per droplet; after Shut down or Force power off,
 Power on of that droplet is refused for 1 min (a guard written to `/data` before sending; if `/data` cannot write
@@ -93,8 +95,8 @@ token, DigitalOcean refuses by itself (HTTP 403).
 - The token allows 5,000 requests per hour (250 per minute), shared with your other tools. The integration follows
   the `ratelimit-*` headers of every answer: under 20 % left, it reads only the droplets; under 25 requests, it
   waits for DigitalOcean to free some (by its clock, 1 min to 1 h).
-- A 429 or a 5xx error pauses reads and commands (the `Retry-After` delay, else 1 min, doubled at each repeated
-  failure, 6 h at most), kept in `/data`.
+- A 429 or a 5xx error pauses reads and commands (the `Retry-After` delay, else until the
+  `ratelimit-reset` of DigitalOcean (1 h at most), at least 1 min, doubled at each repeated failure, 6 h at most), kept in `/data`.
 - No redirection is followed; answers are bounded in size and time.
 
 ## Troubleshooting

@@ -61,7 +61,7 @@ Handoff document: what is done, what was decided, what comes next.
   against the Date of DigitalOcean. Under 20 % of the limit left (read within
   the hour), only the droplets are read; ≤ 25 left, the reads wait until the
   reset (1 min to 1 h); ≤ 3 left during that wait, the commands are refused
-  before sending. A 429 pauses with `retry-after`, else the reset, else 1 min,
+  before sending. A 429 pauses with `retry-after`, else the reset (1 h at most), else 1 min,
   doubling with repeated pausing failures up to 6 h; a 5xx the same. Kept in
   /data.
 - **Reads**: droplets each interval (120 s default, 60-3600; pages of 200 by
@@ -75,7 +75,9 @@ Handoff document: what is done, what was decided, what comes next.
   Alert policies: only the count of enabled ones (the API has no "firing"
   state; their e-mails and Slack URLs are never kept). Uptime: down when a
   region reads DOWN, up when all read UP; uptime = the lowest region.
-- **Identity**: account = the team uuid of `/v2/account` (or the account uuid
+- **Identity** (review r1: the OpenAPI types these ids as plain strings, its examples
+  are 40 characters without dashes; an opaque id `[0-9a-z-]`, 8 to 64, is taken):
+  account = the team uuid of `/v2/account` (or the account uuid
   without a team); droplets by their numeric id; checks by their uuid. Another
   token drops everything read with the old one (even through a configuration
   in error in between). The e-mail of the account is never read into memory
@@ -87,6 +89,25 @@ Handoff document: what is done, what was decided, what comes next.
 - **Categories**: `servers`. No `keywords` (rule). World-wide (no `countries`).
 - **CI**: `timeout-minutes` added to the jobs of `.github/workflows/ci.yml`
   (a hanging test never holds a runner), as gladys-xen-orchestra.
+
+## Review r1 (2026-11-27)
+
+- Account and team ids taken as the OpenAPI types them (plain strings; its
+  examples are 40 characters without dashes): `[0-9a-z-]`, 8 to 64, no `:`;
+  the simulated API uses the official examples (with and without a team, and
+  a team in RFC 4122 form).
+- An action answered 2xx whose body is not understood (`{}`, truncated JSON,
+  id in text, a 202) is "sent, without confirmation": guard kept, follow-up
+  reads; never "nothing sent".
+- A stop no longer cancels another stop of the same droplet (only a Power on
+  not sent yet); a second stop while the first runs is refused as busy.
+- A Reboot sent without a readable action is said "cannot be confirmed"
+  (the droplet runs either way), never "not applied yet".
+- A reconnection with the same configuration clears the caches of what was
+  sent (`published`, `forgetPublishedStates`) and sends the fresh values.
+- One test per guard listed by the review, each in `scripts/mutants.mjs`;
+  two equivalents justified there (Scan sooner than the interval, the early
+  return of the 240-state budget).
 
 ## Next
 

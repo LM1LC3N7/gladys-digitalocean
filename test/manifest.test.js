@@ -187,7 +187,7 @@ test('the option rules reject what the core rejects (the guard itself)', () => {
 });
 
 const OBJECTS = {
-  account: { id: '5df3e300-4a6f-4b9c-9e0f-8a7b6c5d4e3f' },
+  account: { id: '5df3e3004a17e242b7c20ca6c9fc25b701a47ece' },
   droplet: { id: '300000001', name: 'web' },
   check: { id: '00000001-9653-4bd1-bef5-d6bff52042e4', name: 'Landing page' },
 };

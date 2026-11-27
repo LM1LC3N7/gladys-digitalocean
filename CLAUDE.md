@@ -47,7 +47,7 @@ test/kit/           the clocks and certificates of gladys-testkit
 
 ## Rules
 
-- **External ids are forever**: `do-account:<uuid>`, `do-droplet:<id>`,
+- **External ids are forever**: `do-account:<id>`, `do-droplet:<id>`,
   `do-uptime:<uuid>`, built with `gladys.externalIds`. The same goes for the
   manifest keys and the feature keys (`src/constants.js` FEATURES).
 - **Never a creation, resize, rebuild nor deletion**: the client sends only

@@ -1,7 +1,7 @@
 // -----------------------------------------------------------------------------
 // The Gladys devices of a DigitalOcean account (pure):
 //
-//   `ext:<selector>:do-account:<uuid>`   the account (its team's uuid when the
+//   `ext:<selector>:do-account:<id>`     the account (its team's uuid when the
 //                                        token belongs to a team): usage of
 //                                        the month, balances (US dollars),
 //                                        alert policies enabled, status
@@ -26,7 +26,7 @@ import {
   DEVICE_FEATURE_TYPES as T,
   DEVICE_FEATURE_UNITS as U,
 } from '@gladysassistant/integration-sdk';
-import { DROPLET_ID } from './api.js';
+import { ACCOUNT_ID, DROPLET_ID } from './api.js';
 import { DEVICE_TYPES, FEATURES as F } from './constants.js';
 import { featureName, kindName } from './i18n.js';
 
@@ -60,7 +60,7 @@ const button = () => ({
 export const KINDS = {
   account: {
     type: DEVICE_TYPES.ACCOUNT,
-    id: UUID,
+    id: ACCOUNT_ID,
     features: [
       [F.MONTH_USAGE, dollars()],
       [F.MONTH_BALANCE, dollars()],

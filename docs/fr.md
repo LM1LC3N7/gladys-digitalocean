@@ -12,7 +12,8 @@ testée d'après la documentation officielle de l'API, contre une API simulée, 
 ## Coûts
 
 L'API de DigitalOcean est gratuite, mais votre compte est facturé selon vos ressources. Cette intégration ne
-crée rien et ne change aucune taille : elle ne peut pas augmenter votre facture. Attention : **un droplet éteint
+crée et ne redimensionne rien. Un droplet rallumé consomme de nouveau son trafic sortant (facturé au-delà de son
+forfait). Attention : **un droplet éteint
 reste facturé** (seule sa suppression arrête la facturation, et l'intégration ne supprime jamais rien).
 
 ## Jeton
@@ -76,7 +77,8 @@ Pour chaque appui :
 5. une commande n'est dite **faite** que lorsqu'une lecture suivante le montre (Allumer : droplet allumé ;
    Éteindre et Forcer l'extinction : droplet éteint ; Redémarrer : action terminée puis droplet allumé). Les
    relectures suivent à 5 s, 20 s, 60 s (180 s pour Éteindre, 10/30/90 s pour Redémarrer). Sans réponse claire,
-   la commande est dite « envoyée, sans confirmation » et n'est jamais renvoyée d'elle-même.
+   la commande est dite « envoyée, sans confirmation » et n'est jamais renvoyée d'elle-même (un Redémarrer envoyé
+   ainsi ne peut pas être confirmé : le droplet est allumé dans les deux cas ; vérifiez dans le panneau).
 
 Garde-fous : une commande par droplet toutes les 15 s ; une seule à la fois par droplet ; après Éteindre ou
 Forcer l'extinction, Allumer ce droplet est refusé pendant 1 min (garde écrite dans `/data` avant l'envoi ; si
@@ -99,8 +101,8 @@ lent (au-delà de 3,5 s). Avec un jeton en lecture, DigitalOcean refuse lui-mêm
 - Le jeton permet 5 000 requêtes par heure (250 par minute), partagées avec vos autres outils. L'intégration
   suit les en-têtes `ratelimit-*` de chaque réponse : sous 20 % restants, elle ne lit plus que les droplets ;
   sous 25 requêtes, elle attend que DigitalOcean en libère (d'après son heure, de 1 min à 1 h).
-- Un 429 ou une erreur 5xx met lectures et commandes en pause (durée de `Retry-After`, sinon 1 min, doublée à
-  chaque échec répété, 6 h au plus), gardée dans `/data`.
+- Un 429 ou une erreur 5xx met lectures et commandes en pause (durée de `Retry-After`, sinon jusqu'au
+  `ratelimit-reset` de DigitalOcean (1 h au plus), au moins 1 min, doublée à chaque échec répété, 6 h au plus), gardée dans `/data`.
 - Aucune redirection n'est suivie ; les réponses sont bornées en taille et en durée.
 
 ## Dépannage

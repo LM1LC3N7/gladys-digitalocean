@@ -335,3 +335,91 @@ test('the deadline is checked again at the first byte (a slow connection): nothi
   assert.match(JSON.stringify(res), /answered too slowly: nothing sent/);
   assert.equal(ctx.fake.count('POST'), 0);
 });
+
+// --- Review r1 -------------------------------------------------------------------
+
+const POST_REPLY = (reply) => (r) => (r.method === 'POST' ? reply : undefined);
+
+for (const [what, reply] of [
+  ['201 with {}', { status: 201, body: {} }],
+  ['201 with a truncated JSON', { status: 201, body: '{"action":{"id":12' }],
+  [
+    '201 with an id in text',
+    { status: 201, body: { action: { id: '12', type: 'shutdown', status: 'in-progress' } } },
+  ],
+  [
+    '202 with a good action',
+    { status: 202, body: { action: { id: 12, type: 'shutdown', status: 'in-progress' } } },
+  ],
+  ['500 after the send', { status: 500, body: { id: 'server_error', message: 'Server Error' } }],
+]) {
+  test(`taken but not understood (${what}): "sent, without confirmation", guard kept, reads follow`, async (t) => {
+    const ctx = await online(t, { config: ALL_ON });
+    ctx.fake.replyFor = POST_REPLY(reply);
+    const res = await ack(ctx, ctx.press(1, 'shutdown'));
+    assert.equal(res.success, false);
+    assert.match(JSON.stringify(res), /Sent, without confirmation/);
+    assert.match(statusText(ctx), /sent, without confirmation/);
+    assert.ok(ctx.app.guardLeft(did(1)) > 0, 'the guard stays');
+    assert.ok(ctx.app.unconfirmed.has(did(1)));
+    ctx.fake.replyFor = undefined;
+    ctx.app.pauseEnd = -Infinity;
+    await until(ctx, () => ctx.fake.count(`GET /v2/droplets/${did(1)}`) >= 2, 'follow-up', {
+      step: 1000,
+    });
+    assert.equal(ctx.fake.count('POST'), 1);
+  });
+}
+
+test('Reboot of a droplet turned off: refused (it would start it), nothing sent', async (t) => {
+  const ctx = await online(t, { config: ALL_ON });
+  const res = await ack(ctx, ctx.press(2, 'reboot'));
+  assert.match(JSON.stringify(res), /not running \(off\)/);
+  assert.equal(ctx.fake.count('POST'), 0);
+});
+
+test('a 429 on the read of a command pauses every path', async (t) => {
+  const ctx = await online(t);
+  ctx.fake.replyFor = (r) =>
+    r.path === `/v2/droplets/${did(2)}`
+      ? { status: 429, body: {}, headers: { 'retry-after': '120' } }
+      : undefined;
+  await ack(ctx, ctx.press(2, 'power_on'));
+  assert.ok(ctx.app.paused());
+  assert.equal(ctx.fake.count('POST'), 0);
+});
+
+test('follow-up reads wait during a pause; the last one says the droplet was not read', async (t) => {
+  const ctx = await online(t, { server: { applyDelayMs: 10_000_000 } });
+  await ack(ctx, ctx.press(2, 'power_on'));
+  const reads = ctx.fake.count(`GET /v2/droplets/${did(2)}`);
+  ctx.app.pause({ kind: 'rate', retryAfter: 3_600_000 });
+  await ctx.clock.advance(70_000);
+  await pause(30);
+  assert.equal(ctx.fake.count(`GET /v2/droplets/${did(2)}`), reads);
+  assert.match(statusText(ctx), /not applied yet \(droplet read: not read\)/);
+});
+
+test('a second stop while the first runs: refused as busy, the first one still leaves', async (t) => {
+  const ctx = await online(t, { config: ALL_ON });
+  ctx.fake.latencyMs = (r) => (r.method === 'GET' && r.path === `/v2/droplets/${did(1)}` ? 400 : 0);
+  const first = ctx.press(1, 'shutdown');
+  await waitFor(() => ctx.fake.count(`GET /v2/droplets/${did(1)}`) === 1, 'read started');
+  const second = await ack(ctx, ctx.press(1, 'power_off'), 0);
+  assert.match(
+    JSON.stringify(second),
+    /Another command of this droplet is running: nothing sent\./,
+  );
+  const res = await ack(ctx, first, 0);
+  assert.equal(res.success, true);
+  assert.equal(ctx.fake.count('POST'), 1);
+});
+
+test('a Reboot sent without an answer: said it cannot be confirmed, never "not applied"', async (t) => {
+  const ctx = await online(t, { config: ALL_ON });
+  ctx.fake.replyFor = POST_REPLY('silent');
+  await ack(ctx, ctx.press(1, 'reboot'), 0);
+  ctx.fake.replyFor = undefined;
+  await until(ctx, () => /cannot be confirmed/.test(statusText(ctx)), 'final', { step: 5000 });
+  assert.doesNotMatch(statusText(ctx), /not applied yet/);
+});

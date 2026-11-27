@@ -357,8 +357,13 @@ export class DoApp {
       this.lastStatus = undefined;
       this.discoveredKey = undefined;
       this.transports.clear();
+      // The caches of what was sent go too: the next read sends its values
+      // again (never an old value now: only reads still fresh are sent).
+      this.published.clear();
+      this.gladys.forgetPublishedStates?.();
       this.refreshCreated();
       await this.publishDiscovery();
+      await this.publishStates();
       await this.showStatus();
       await this.publishTransports();
       return;
@@ -1130,7 +1135,7 @@ export class DoApp {
   dropletCommand(id) {
     let state = this.dropletCommands.get(id);
     if (!state) {
-      state = { busy: false, last: -Infinity, epoch: 0 };
+      state = { busy: false, last: -Infinity, epoch: 0, running: undefined };
       this.dropletCommands.set(id, state);
     }
     return state;
@@ -1160,7 +1165,7 @@ export class DoApp {
     if (this.blocked) throw this.refusal('tokenRefused');
     if (this.paused()) throw this.refusal('paused', Math.ceil(this.pauseLeft() / 1000));
     if (this.quotaSpent()) throw this.refusal('quota');
-    if (state.epoch !== epoch) throw this.refusal('stopArrived');
+    if (!button.stop && state.epoch !== epoch) throw this.refusal('stopArrived');
     if (key === FEATURES.POWER_ON && this.guardLeft(id) > 0) {
       throw this.refusal('stopGuard', Math.ceil(this.guardLeft(id) / 1000));
     }
@@ -1230,12 +1235,17 @@ export class DoApp {
     if (button.stop) state.epoch += 1;
     const epoch = state.epoch;
     this.check(id, key, button, state, epoch);
-    if (state.busy) throw this.refusal(button.stop ? 'busyCancelled' : 'busy');
+    if (state.busy) {
+      throw this.refusal(
+        button.stop && state.running === FEATURES.POWER_ON ? 'busyCancelled' : 'busy',
+      );
+    }
     const since = this.mono() - state.last;
     if (since < TIMINGS.commandSpacing) {
       throw this.refusal('spacing', Math.ceil((TIMINGS.commandSpacing - since) / 1000));
     }
     state.busy = true;
+    state.running = key;
     let undoGuard;
     let left = false;
     try {
@@ -1374,7 +1384,11 @@ export class DoApp {
             finish(T.result.confirmed(key));
             return;
           }
-          if (final) finish(T.result.notApplied(key, droplet.status));
+          if (final) {
+            // A reboot sent without a readable action cannot be told from no reboot at all.
+            const blind = !button.wanted && actionId === undefined;
+            finish(blind ? T.result.cannotConfirm(key) : T.result.notApplied(key, droplet.status));
+          }
         } catch (err) {
           this.sideError(err);
           if (final && this.current(generation)) finish(T.result.notApplied(key, undefined));

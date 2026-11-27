@@ -249,6 +249,13 @@ export const T = {
         `${n.fr} : DigitalOcean indique que l'action a échoué (errored).`,
       );
     },
+    cannotConfirm: (key) => {
+      const n = commandName(key);
+      return both(
+        `${n.en}: sent without a clear answer; it cannot be confirmed (the droplet runs either way). Check its activity in the DigitalOcean control panel.`,
+        `${n.fr} : envoyé sans réponse claire ; il ne peut pas être confirmé (le droplet est allumé dans les deux cas). Vérifiez son activité dans le panneau de DigitalOcean.`,
+      );
+    },
     notApplied: (key, status) => {
       const n = commandName(key);
       const s = status

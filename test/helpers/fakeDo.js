@@ -16,8 +16,11 @@ import { certs } from '../kit/certs.mjs';
 
 export const TOKEN = `dop_v1_${'0123456789abcdef'.repeat(4)}`;
 export const OTHER_TOKEN = `dop_v1_${'fedcba9876543210'.repeat(4)}`;
-export const ACCOUNT_UUID = '4f7a1b52-2c1e-4d8e-9b0a-6c3d2e1f0a9b';
-export const TEAM_UUID = '5df3e300-4a6f-4b9c-9e0f-8a7b6c5d4e3f';
+// The examples of the OpenAPI (account/models/account.yml): 40 characters, no dash.
+export const ACCOUNT_UUID = 'b6fr89dbf6d9156cace5f3c78dc9851d957381ef';
+export const TEAM_UUID = '5df3e3004a17e242b7c20ca6c9fc25b701a47ece';
+/** A team id in the RFC 4122 form, as doctl shows some. */
+export const RFC_TEAM_UUID = 'e8566708-f6fd-11ec-9c5f-0a58ac14b3c6';
 
 /** The id of droplet n. */
 export const did = (n) => String(300_000_000 + n);

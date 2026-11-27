@@ -6,8 +6,17 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { memoryStore } from '../src/store.js';
-import { OTHER_TOKEN, TEAM_UUID, TOKEN, cid, did, droplet } from './helpers/fakeDo.js';
+import { memoryStore, tokenMark } from '../src/store.js';
+import {
+  ACCOUNT_UUID,
+  OTHER_TOKEN,
+  RFC_TEAM_UUID,
+  TEAM_UUID,
+  TOKEN,
+  cid,
+  did,
+  droplet,
+} from './helpers/fakeDo.js';
 import {
   ack,
   created,
@@ -374,4 +383,114 @@ test('a 5xx on a secondary read pauses every path too', async (t) => {
   });
   await until(ctx, () => ctx.app.paused(), 'paused');
   assert.equal(ctx.fake.count('/v2/monitoring/alerts'), 0, 'the next secondary reads wait');
+});
+
+// --- Review r1 -------------------------------------------------------------------
+
+const accountDevice = (ctx) =>
+  ctx.gladys.fake.discoveredDevices.find((d) => d.external_id.includes(':do-account:'))
+    ?.external_id;
+
+test('the account ids of the OpenAPI: 40 characters without a team, a team in RFC form, both taken', async (t) => {
+  const solo = await online(t, { server: { account: { uuid: ACCOUNT_UUID, status: 'active' } } });
+  assert.equal(accountDevice(solo), `ext:test-integration:do-account:${ACCOUNT_UUID}`);
+  const team = await online(t, {
+    server: {
+      account: { uuid: ACCOUNT_UUID, status: 'active', team: { uuid: RFC_TEAM_UUID, name: 'T' } },
+    },
+  });
+  assert.equal(accountDevice(team), `ext:test-integration:do-account:${RFC_TEAM_UUID}`);
+  const official = await online(t);
+  assert.equal(accountDevice(official), `ext:test-integration:do-account:${TEAM_UUID}`);
+  assert.equal(stateOf(official, 'account', TEAM_UUID, 'month_usage'), 11.21);
+  // An id unsafe in an external id is refused (no device, said in the status).
+  const bad = await online(t, { server: { account: { uuid: 'a:b/../c', status: 'active' } } });
+  assert.equal(accountDevice(bad), undefined);
+  assert.match(statusText(bad), /Not read: account/);
+});
+
+test('a refusal kept in /data read late (first unreadable) stops the reads once read', async (t) => {
+  const salt = '0123456789abcdef';
+  const store = memoryStore({ refused: { salt, mark: tokenMark(salt, TOKEN) } });
+  store.failLoad = true;
+  const ctx = await online(t, { store });
+  assert.equal(ctx.app.blocked, false);
+  store.failLoad = false;
+  await until(ctx, () => ctx.app.blocked, 'refusal adopted', { step: 2000 });
+  const asked = ctx.fake.count('GET /v2/droplets');
+  await ctx.clock.advance(3_600_000);
+  assert.equal(ctx.fake.count('GET /v2/droplets'), asked);
+});
+
+test('the Test button: a 401 without the envelope is not a refusal; never sooner than the interval', async (t) => {
+  const ctx = await online(t);
+  const asked = ctx.fake.count('GET /v2/droplets');
+  const res = await within(ctx.gladys.fake.action('test_connection'), 'test');
+  assert.match(JSON.stringify(res), /next read in/);
+  assert.equal(ctx.fake.count('GET /v2/droplets'), asked);
+  await ctx.clock.advance(130_000);
+  await idle(ctx);
+  ctx.fake.replyFor = (r) =>
+    r.path === '/v2/droplets' ? { status: 401, body: '<html>proxy</html>' } : undefined;
+  await ctx.clock.advance(130_000);
+  await idle(ctx);
+  ctx.app.lastReadMono = -Infinity;
+  ctx.app.lastTest = undefined;
+  const before = ctx.fake.count('GET /v2/droplets');
+  await within(ctx.gladys.fake.action('test_connection'), 'test 2');
+  assert.equal(ctx.fake.count('GET /v2/droplets'), before + 1, 'the Test button read');
+  assert.equal(ctx.app.blocked, false);
+  assert.equal(ctx.store.data?.refused ?? null, null);
+});
+
+test('alert policies and uptime states no longer read are not sent again as new', async (t) => {
+  const ctx = await online(t, { devices: [] });
+  ctx.fake.forbid.add('alerts');
+  ctx.fake.forbid.add('state');
+  // More than 2 h of reads: both are stale.
+  await until(ctx, () => ctx.clock.elapsed > 3 * 3_600_000, 'time', {
+    step: 60_000,
+    timeout: 15_000,
+  });
+  await within(ctx.gladys.fake.deviceCreated(created('account', TEAM_UUID)), 'account');
+  await within(ctx.gladys.fake.deviceCreated(created('check', cid(1))), 'check');
+  assert.equal(stateOf(ctx, 'account', TEAM_UUID, 'alert_policies'), undefined);
+  assert.equal(stateOf(ctx, 'check', cid(1), 'up'), undefined);
+  assert.equal(
+    stateOf(ctx, 'account', TEAM_UUID, 'month_usage'),
+    11.21,
+    'the balance is still fresh',
+  );
+});
+
+test('at most 240 states a minute to Gladys; the rest at the next reads', async (t) => {
+  const droplets = Array.from({ length: 150 }, (_, i) => droplet(i + 1));
+  const devices = droplets.map((d) => created('droplet', String(d.id)));
+  const ctx = await online(t, { devices, server: { droplets } });
+  assert.equal(ctx.gladys.fake.states.length, 240);
+  await until(ctx, () => ctx.gladys.fake.states.length === 450, 'the rest', { step: 10_000 });
+});
+
+test('another account behind the token: its old balance and alerts go', async (t) => {
+  const ctx = await online(t);
+  assert.ok(ctx.app.balance);
+  ctx.fake.account = { uuid: ACCOUNT_UUID, status: 'active' };
+  ctx.fake.forbid.add('balance');
+  ctx.fake.forbid.add('alerts');
+  await until(ctx, () => ctx.app.account?.id === ACCOUNT_UUID, 'account read again', {
+    step: 60_000,
+    timeout: 15_000,
+  });
+  assert.equal(ctx.app.balance, undefined);
+  assert.equal(ctx.app.alerts, undefined);
+});
+
+test('a reconnection with the same configuration sends the fresh values again', async (t) => {
+  const ctx = await online(t);
+  const before = ctx.gladys.fake.states.length;
+  await within(
+    ctx.app.connectedWith(() => ctx.gladys.getConfig()),
+    'connected',
+  );
+  assert.ok(ctx.gladys.fake.states.length > before);
 });

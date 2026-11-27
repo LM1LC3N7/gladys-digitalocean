@@ -339,6 +339,19 @@ export const dropletIdOf = (v) =>
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const uuidOf = (v) => (typeof v === 'string' && UUID.test(v) ? v.toLowerCase() : undefined);
 
+/**
+ * The id of an account or a team: the OpenAPI types it as a plain string; its
+ * examples are 40 characters without dashes (`5df3e3004a17e242b7c20ca6c9fc25b701a47ece`),
+ * some teams show an RFC 4122 UUID. An opaque id, bounded and safe in an
+ * external id (no `:`), in small letters.
+ */
+export const ACCOUNT_ID = /^[0-9a-z][0-9a-z-]{6,62}[0-9a-z]$/;
+export const accountIdOf = (v) => {
+  if (typeof v !== 'string') return undefined;
+  const id = v.toLowerCase();
+  return ACCOUNT_ID.test(id) ? id : undefined;
+};
+
 const DROPLET_STATES = ['new', 'active', 'off', 'archive'];
 
 /** A droplet of `/droplets` or `/droplets/<id>`: strict values, anything else unknown (never 0). */
@@ -369,8 +382,8 @@ const hasNext = (json) =>
 export function accountOf(json) {
   const a = isObject(json) && isObject(json.account) ? json.account : undefined;
   if (!a) throw notDo();
-  const team = isObject(a.team) ? uuidOf(a.team.uuid) : undefined;
-  const id = team ?? uuidOf(a.uuid);
+  const team = isObject(a.team) ? accountIdOf(a.team.uuid) : undefined;
+  const id = team ?? accountIdOf(a.uuid);
   if (!id) throw notDo();
   const status = ['active', 'warning', 'locked'].includes(a.status) ? a.status : undefined;
   return { id, status };
@@ -519,7 +532,13 @@ export function createApi({ token, origin = API, signal, request, onQuota }) {
       if (status !== 201 && status !== 200) {
         throw new DoError('format', `HTTP ${status}`, { status });
       }
-      const action = actionOf(json);
+      // A 2xx whose body is not understood was taken: never "nothing sent".
+      let action;
+      try {
+        action = actionOf(json);
+      } catch {
+        throw new DoError('format', 'answer not understood', { status });
+      }
       if (action.type !== type || (action.resourceId !== undefined && action.resourceId !== id)) {
         throw new DoError('format', 'not the action asked', { status });
       }
